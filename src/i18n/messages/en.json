@@ -1,0 +1,31 @@
+{
+    "Navbar": {
+        "recipes": "Recipes",
+        "scan": "Scan",
+        "mealPlanner": "Meal Planner",
+        "pantry": "Pantry",
+        "shoppingList": "Shopping List",
+        "myRecipes": "My Recipes",
+        "signIn": "Sign In",
+        "search": "Search"
+    },
+    "Hero": {
+        "newBadge": "New: Voice-Assisted Cooking Mode",
+        "titleStart": "Master the Art of",
+        "titleHighlight": "Cooking with AI",
+        "subtitle": "Your personal kitchen companion. Find recipes based on what you have, plan healthy meals, and cook hands-free with our intelligent voice assistant.",
+        "searchPlaceholder": "What ingredients do you have? (e.g., chicken, rice, lemons)",
+        "findRecipes": "Find Recipes",
+        "exploreRecipes": "Explore Recipes",
+        "startMealPlanning": "Start Meal Planning",
+        "stats": {
+            "recipes": "Recipes Available",
+            "chefs": "Active Chefs",
+            "satisfaction": "Satisfaction Rate",
+            "support": "AI Support"
+        }
+    },
+    "LanguageSwitcher": {
+        "label": "Language"
+    }
+}
