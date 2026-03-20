@@ -75,9 +75,12 @@ function convertAmount(amount: number, fromUnit: string, toUnit: string, ingredi
 
 function formatConvertedValue(value: number | null): string {
     if (value === null) return "---";
+    if (value === 0) return "0";
     if (value >= 100) return value.toFixed(1);
-    if (value >= 10) return value.toFixed(2);
-    return value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+    if (value >= 1) return value.toFixed(2);
+    if (value >= 0.01) return value.toFixed(3);
+    // Very small values: use up to 4 decimal places, strip only genuinely trailing zeros
+    return value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 export default function ConverterPage() {

@@ -150,7 +150,7 @@ export default function PantryPage() {
         setIngredients(ingredients.filter((_, i) => i !== index));
     };
 
-    const filteredIngredients = ingredients.filter(item => {
+    const filteredIngredients = ingredients.map((item, originalIndex) => ({ item, originalIndex })).filter(({ item }) => {
         const matchesCategory = selectedCategory === "all" || item.category === selectedCategory;
         const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.nameHindi.includes(searchQuery);
@@ -304,9 +304,9 @@ export default function PantryPage() {
                                 Pantry Items / पैंट्री सामान
                             </h2>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                {filteredIngredients.map((item, index) => (
+                                {filteredIngredients.map(({ item, originalIndex }) => (
                                     <div
-                                        key={index}
+                                        key={originalIndex}
                                         className="group relative flex items-center gap-3 p-4 bg-white dark:bg-zinc-900 border border-border rounded-xl hover:border-primary/50 hover:shadow-lg transition-all"
                                     >
                                         <span className="text-2xl">{item.emoji}</span>
@@ -328,7 +328,7 @@ export default function PantryPage() {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => removeIngredient(ingredients.indexOf(item))}
+                                            onClick={() => removeIngredient(originalIndex)}
                                             className="absolute top-2 right-2 text-muted-foreground hover:text-destructive p-1 rounded-full hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100"
                                             aria-label="Remove ingredient"
                                         >

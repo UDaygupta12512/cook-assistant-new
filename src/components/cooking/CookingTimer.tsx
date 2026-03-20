@@ -11,6 +11,7 @@ interface CookingTimerProps {
 
 export function CookingTimer({ defaultMinutes = 5, label = "Timer", onComplete }: CookingTimerProps) {
     const [totalSeconds, setTotalSeconds] = useState(defaultMinutes * 60);
+    const [initialSeconds, setInitialSeconds] = useState(defaultMinutes * 60);
     const [isRunning, setIsRunning] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
@@ -75,16 +76,18 @@ export function CookingTimer({ defaultMinutes = 5, label = "Timer", onComplete }
     const handleReset = () => {
         setIsRunning(false);
         setTotalSeconds(defaultMinutes * 60);
+        setInitialSeconds(defaultMinutes * 60);
         setIsComplete(false);
     };
 
     const adjustTime = (delta: number) => {
         if (!isRunning) {
             setTotalSeconds((prev) => Math.max(0, prev + delta));
+            setInitialSeconds((prev) => Math.max(0, prev + delta));
         }
     };
 
-    const progress = ((defaultMinutes * 60 - totalSeconds) / (defaultMinutes * 60)) * 100;
+    const progress = initialSeconds > 0 ? ((initialSeconds - totalSeconds) / initialSeconds) * 100 : 0;
 
     return (
         <div className={`relative p-6 rounded-2xl border ${isComplete ? 'bg-green-50 border-green-300 dark:bg-green-900/20' : 'bg-white dark:bg-zinc-900 border-border'} shadow-lg`}>
@@ -145,7 +148,13 @@ export function CookingTimer({ defaultMinutes = 5, label = "Timer", onComplete }
                 <div className="flex justify-center gap-3">
                     <button
                         type="button"
-                        onClick={() => setIsRunning(!isRunning)}
+                        onClick={() => {
+                            if (!isRunning && !isComplete) {
+                                // Capture the starting seconds when the timer begins
+                                setInitialSeconds(totalSeconds);
+                            }
+                            setIsRunning(!isRunning);
+                        }}
                         disabled={totalSeconds === 0 && !isComplete}
                         className={`flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all shadow-md hover:shadow-lg ${isRunning
                                 ? 'bg-amber-500 hover:bg-amber-600 text-white'

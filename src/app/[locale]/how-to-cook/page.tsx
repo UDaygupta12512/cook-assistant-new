@@ -386,12 +386,34 @@ export default function HowToCookPage() {
                                     <p className="text-2xl text-white/90 font-bold mb-10">{recipe.hindi}</p>
 
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        {[
-                                            { icon: Clock, label: "Total Time", value: `${parseInt(recipe.prepTime) + parseInt(recipe.cookTime)} min` },
-                                            { icon: Users, label: "Servings", value: `${recipe.servings} People` },
-                                            { icon: Flame, label: "Difficulty", value: recipe.difficulty },
-                                            { icon: Utensils, label: "Calories", value: "350 kcal" }
-                                        ].map((stat, idx) => (
+                                        {(() => {
+                                            // Safely parse time strings like "15 min", "1 hr 30 min", "25", etc.
+                                            const parseMinutes = (raw: string | number): number => {
+                                                if (typeof raw === 'number') return raw;
+                                                if (!raw) return 0;
+                                                const s = String(raw).toLowerCase().trim();
+                                                let total = 0;
+                                                const hrMatch = s.match(/(\d+)\s*h/);
+                                                const minMatch = s.match(/(\d+)\s*m/);
+                                                if (hrMatch) total += parseInt(hrMatch[1]) * 60;
+                                                if (minMatch) total += parseInt(minMatch[1]);
+                                                if (!hrMatch && !minMatch) {
+                                                    const n = parseInt(s);
+                                                    if (!isNaN(n)) total = n;
+                                                }
+                                                return total;
+                                            };
+                                            const totalMin = parseMinutes(recipe.prepTime) + parseMinutes(recipe.cookTime);
+                                            const totalTimeStr = totalMin >= 60
+                                                ? `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`
+                                                : `${totalMin} min`;
+                                            return [
+                                                { icon: Clock, label: "Total Time", value: totalTimeStr },
+                                                { icon: Users, label: "Servings", value: `${recipe.servings} People` },
+                                                { icon: Flame, label: "Difficulty", value: recipe.difficulty },
+                                                { icon: Utensils, label: "Prep + Cook", value: `${parseMinutes(recipe.prepTime)} + ${parseMinutes(recipe.cookTime)} min` }
+                                            ];
+                                        })().map((stat, idx) => (
                                             <div key={idx} className="bg-black/20 backdrop-blur-xl p-4 rounded-2xl border border-white/10">
                                                 <div className="flex items-center gap-2 text-white/70 text-xs font-bold uppercase tracking-widest mb-1">
                                                     <stat.icon className="w-3 h-3" />
@@ -444,7 +466,9 @@ export default function HowToCookPage() {
                                                     </div>
                                                     <div>
                                                         <p className="font-black text-lg text-foreground mb-1">{ing}</p>
-                                                        <p className="text-primary font-bold">{recipe.ingredientsHindi[idx]}</p>
+                                                        {recipe.ingredientsHindi?.[idx] && (
+                                                            <p className="text-primary font-bold">{recipe.ingredientsHindi[idx]}</p>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </motion.div>
@@ -489,7 +513,9 @@ export default function HowToCookPage() {
                                             {recipe.tips.map((tip: string, idx: number) => (
                                                 <div key={idx} className="bg-white/50 dark:bg-zinc-800/50 p-4 rounded-2xl">
                                                     <p className="font-bold text-foreground italic mb-1">"{tip}"</p>
-                                                    <p className="text-primary text-sm font-bold">"{recipe.tipsHindi[idx]}"</p>
+                                                    {recipe.tipsHindi?.[idx] && (
+                                                        <p className="text-primary text-sm font-bold">"{recipe.tipsHindi[idx]}"</p>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

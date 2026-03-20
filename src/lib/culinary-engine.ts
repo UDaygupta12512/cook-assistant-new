@@ -74,13 +74,31 @@ export function normalizeText(input: string): string {
     .trim();
 }
 
+// Words that should never be singularized (they don't end in a plural "s")
+const SINGULARIZE_EXCEPTIONS = new Set([
+  "rice", "cheese", "sauce", "juice", "goose", "moose",
+  "grease", "lease", "crease", "ease", "disease", "release",
+  "lettuce", "produce", "couscous", "hummus", "asparagus",
+  "citrus", "cactus", "octopus", "quinoa", "tahini",
+  "molasses", "cauliflower", "sumac", "turmeric", "anise",
+  "pulse", "mousse", "meringue", "puree", "dice", "mince",
+  "mise", "tortellini", "penne", "rotini", "orzo",
+]);
+
 function normalizeIngredientToken(token: string): string {
   const t = normalizeText(token);
   if (!t) return t;
   if (INGREDIENT_SYNONYMS[t]) return INGREDIENT_SYNONYMS[t];
-  // naive singularization for common plurals
-  if (t.endsWith("es") && t.length > 4) return t.slice(0, -2);
-  if (t.endsWith("s") && t.length > 3) return t.slice(0, -1);
+  if (SINGULARIZE_EXCEPTIONS.has(t)) return t;
+  // careful singularization for common plurals
+  if (t.endsWith("ies") && t.length > 4) return t.slice(0, -3) + "y"; // berries -> berry
+  if (t.endsWith("ves") && t.length > 4) return t.slice(0, -3) + "f"; // loaves -> loaf
+  if (t.endsWith("shes") || t.endsWith("ches") || t.endsWith("xes") || t.endsWith("zes") || t.endsWith("sses")) {
+    return t.slice(0, -2); // dishes -> dish, batches -> batch
+  }
+  if (t.endsWith("oes") && t.length > 4) return t.slice(0, -2); // tomatoes -> tomato, potatoes -> potato
+  if (t.endsWith("es") && t.length > 4) return t.slice(0, -1); // spices -> spice (remove only the trailing "s")
+  if (t.endsWith("s") && !t.endsWith("ss") && !t.endsWith("us") && t.length > 3) return t.slice(0, -1);
   return t;
 }
 

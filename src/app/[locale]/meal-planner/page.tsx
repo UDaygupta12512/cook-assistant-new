@@ -123,11 +123,14 @@ export default function MealPlannerPage() {
                                     return (
                                         <div
                                             key={`${day}-${type}`}
-                                            className={`min-h-[100px] p-3 rounded-xl border transition-all relative group flex flex-col ${meal
-                                                ? "bg-primary/5 border-primary/20"
-                                                : "bg-white dark:bg-zinc-900 border-border hover:border-primary/50 cursor-pointer"
+                                            className={`min-h-[100px] p-3 rounded-xl border transition-all relative group flex flex-col cursor-pointer ${meal
+                                                ? "bg-primary/5 border-primary/20 hover:border-primary/40"
+                                                : "bg-white dark:bg-zinc-900 border-border hover:border-primary/50"
                                                 }`}
-                                            onClick={() => !meal && setActiveSlot({ day, type })}
+                                            onClick={() => {
+                                                setActiveSlot({ day, type });
+                                                setMealInput(meal || "");
+                                            }}
                                         >
                                             <span className="text-xs uppercase font-bold tracking-wider text-muted-foreground mb-1">
                                                 {type}
@@ -163,7 +166,9 @@ export default function MealPlannerPage() {
                         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                             <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-200">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-bold">Add {activeSlot.type} for {activeSlot.day}</h3>
+                                    <h3 className="text-lg font-bold">
+                                        {planner[activeSlot.day]?.[activeSlot.type] ? "Edit" : "Add"} {activeSlot.type} for {activeSlot.day}
+                                    </h3>
                                     <button onClick={() => setActiveSlot(null)} className="p-1 hover:bg-secondary rounded-full">
                                         <X className="w-5 h-5" />
                                     </button>

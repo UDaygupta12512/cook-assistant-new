@@ -134,17 +134,42 @@ export default function GenerateRecipePage() {
             categoryHindi: "रात का खाना",
             prepTime: dynamic.prepTime,
             cookTime: dynamic.cookTime,
-            totalTime: dynamic.prepTime,
+            totalTime: (() => {
+                const parse = (raw: string | number): number => {
+                    if (typeof raw === 'number') return raw;
+                    if (!raw) return 0;
+                    const s = String(raw).toLowerCase().trim();
+                    let total = 0;
+                    const hrMatch = s.match(/(\d+)\s*h/);
+                    const minMatch = s.match(/(\d+)\s*m/);
+                    if (hrMatch) total += parseInt(hrMatch[1]) * 60;
+                    if (minMatch) total += parseInt(minMatch[1]);
+                    if (!hrMatch && !minMatch) { const n = parseInt(s); if (!isNaN(n)) total = n; }
+                    return total;
+                };
+                const total = parse(dynamic.prepTime) + parse(dynamic.cookTime);
+                return total >= 60 ? `${Math.floor(total / 60)}h ${total % 60}m` : `${total} min`;
+            })(),
             servings: dynamic.servings,
             rating: 5.0,
             image: "✨",
             color: "bg-purple-100 text-purple-600",
             difficulty: dynamic.difficulty,
-            ingredients: dynamic.ingredients.map((i: string | any) => ({
-                name: typeof i === 'string' ? i : (i.name || i.english || ''),
-                amount: typeof i === 'string' ? "1" : (i.amount || "1"),
-                unit: typeof i === 'string' ? "unit" : (i.unit || "unit")
-            })),
+            ingredients: dynamic.ingredients.map((i: string | any) => {
+                if (typeof i === 'string') {
+                    // Try to parse "2 cups flour" format
+                    const match = i.match(/^([\d./]+)\s*([\w]+)?\s+(.+)$/);
+                    if (match) {
+                        return { name: match[3], amount: match[1], unit: match[2] || "" };
+                    }
+                    return { name: i, amount: "", unit: "" };
+                }
+                return {
+                    name: i.name || i.english || '',
+                    amount: i.amount || "",
+                    unit: i.unit || ""
+                };
+            }),
             steps: dynamic.steps.map((s: any) => s.english || s),
             stepsHindi: dynamic.steps.map((s: any) => s.hindi || s),
             chefTips: dynamic.tips,
