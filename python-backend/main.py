@@ -31,6 +31,9 @@ CHROMA_DB_DIR = "./chroma_db"
 embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 vectorstore = None
 
+# Import our custom ML Substitution Engine
+from substitute import engine as ml_engine
+
 @app.on_event("startup")
 async def startup_event():
     global vectorstore
@@ -184,6 +187,21 @@ async def voice_chat_endpoint(
         )
     except Exception as e:
         print(f"Voice chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class SubstituteRequest(BaseModel):
+    ingredient: str
+
+@app.post("/substitute")
+async def substitute_endpoint(request: SubstituteRequest):
+    if not request.ingredient.strip():
+        raise HTTPException(status_code=400, detail="Ingredient required")
+    
+    try:
+        results = ml_engine.find_substitutes(request.ingredient.strip(), top_k=3)
+        return {"target": request.ingredient, "matches": results}
+    except Exception as e:
+        print(f"Substitute error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

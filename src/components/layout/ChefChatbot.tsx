@@ -268,7 +268,21 @@ export const ChefChatbot = () => {
                         <p>{data.text}</p>
                         <div className="h-56 w-full bg-white dark:bg-zinc-800 rounded-xl p-3 shadow-sm border border-border mt-2">
                             <p className="text-sm font-bold text-center mb-2">{data.ui.title}</p>
-                            {data.ui.type === 'pie_chart' ? (
+                            {data.ui.type === 'ml_widget' ? (
+                                <div className="flex flex-col gap-3 mt-2 overflow-y-auto max-h-[150px] pr-2">
+                                    {data.ui.data.map((match: any, idx: number) => (
+                                        <div key={idx} className="w-full">
+                                            <div className="flex justify-between text-xs mb-1 font-semibold">
+                                                <span className="capitalize">{match.ingredient}</span>
+                                                <span className="text-emerald-500">{match.score}% Match</span>
+                                            </div>
+                                            <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
+                                                <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${match.score}%` }}></div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : data.ui.type === 'pie_chart' ? (
                                 <ResponsiveContainer width="100%" height="80%">
                                     <PieChart>
                                         <Pie data={data.ui.data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={30} outerRadius={50} label={({name, value}) => `${name}: ${value}`}>
