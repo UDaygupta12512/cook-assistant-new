@@ -5,8 +5,9 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         
         // Forward the request to our new Python FastAPI backend
-        // Note: Ensure the Python server is running on port 8000
-        const pythonBackendUrl = "http://localhost:8000/chat";
+        // Uses NEXT_PUBLIC_PYTHON_BACKEND_URL in production, falls back to localhost for dev
+        const baseUrl = process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL || "http://localhost:8000";
+        const pythonBackendUrl = `${baseUrl}/chat`;
         
         const response = await fetch(pythonBackendUrl, {
             method: 'POST',
