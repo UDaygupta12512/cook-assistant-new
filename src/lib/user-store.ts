@@ -1,5 +1,13 @@
+/**
+ * File-based user store — no database required.
+ * Uses a JSON file on the server filesystem for persistence.
+ * On Render / Vercel serverless, data resets on restart (acceptable for a portfolio demo).
+ * For production, replace this with a real database adapter.
+ */
+import fs from "fs";
+import path from "path";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { randomUUID } from "crypto";
 
 export type StoredUser = {
   id: string;
@@ -24,46 +32,55 @@ export type StoredUser = {
   };
 };
 
+// ── Persistence helpers ────────────────────────────────────────────────────────
+
+const DB_PATH = path.join(process.cwd(), "users.json");
+
+// In-memory store (seed from file if it exists)
+let usersMap: Map<string, StoredUser> = new Map();
+
+function loadFromDisk() {
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      const raw = fs.readFileSync(DB_PATH, "utf-8");
+      const arr: StoredUser[] = JSON.parse(raw);
+      usersMap = new Map(arr.map((u) => [u.email, u]));
+    }
+  } catch {
+    usersMap = new Map();
+  }
+}
+
+function saveToDisk() {
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify([...usersMap.values()], null, 2));
+  } catch {
+    // Silently fail in read-only environments (Vercel / serverless)
+  }
+}
+
+// Load on module init
+loadFromDisk();
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-// Convert Prisma user record to StoredUser shape
-function toStoredUser(dbUser: {
-  id: string;
-  name: string;
-  email: string;
-  passwordHash: string;
-  bio: string | null;
-  dietaryPref: string | null;
-  skillLevel: string | null;
-  notifications: unknown;
-  privacy: unknown;
-  createdAt: Date;
-}): StoredUser {
-  return {
-    id: dbUser.id,
-    name: dbUser.name,
-    email: dbUser.email,
-    passwordHash: dbUser.passwordHash,
-    createdAt: dbUser.createdAt.toISOString(),
-    bio: dbUser.bio ?? undefined,
-    dietaryPref: dbUser.dietaryPref ?? undefined,
-    skillLevel: dbUser.skillLevel ?? undefined,
-    notifications: (dbUser.notifications as StoredUser["notifications"]) ?? undefined,
-    privacy: (dbUser.privacy as StoredUser["privacy"]) ?? undefined,
-  };
-}
+// ── Public API ─────────────────────────────────────────────────────────────────
 
 export async function getUserByEmail(email: string): Promise<StoredUser | null> {
-  const e = normalizeEmail(email);
-  const user = await prisma.user.findUnique({ where: { email: e } });
-  return user ? toStoredUser(user) : null;
+  loadFromDisk();
+  return usersMap.get(normalizeEmail(email)) ?? null;
 }
 
 export async function getUserById(id: string): Promise<StoredUser | null> {
-  const user = await prisma.user.findUnique({ where: { id } });
-  return user ? toStoredUser(user) : null;
+  loadFromDisk();
+  for (const user of usersMap.values()) {
+    if (user.id === id) return user;
+  }
+  return null;
 }
 
 export async function createUser(params: {
@@ -71,17 +88,16 @@ export async function createUser(params: {
   email: string;
   password: string;
 }): Promise<Omit<StoredUser, "passwordHash">> {
+  loadFromDisk();
   const name = params.name.trim();
   const email = normalizeEmail(params.email);
-  const password = params.password;
+  const { password } = params;
 
   if (!name) throw new Error("Name is required");
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) throw new Error("Valid email is required");
   if (!password || password.length < 8) throw new Error("Password must be at least 8 characters");
 
-  // Check if user already exists
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
+  if (usersMap.has(email)) {
     const err = new Error("Email already in use");
     // @ts-expect-error add code for API layer
     err.code = "EMAIL_EXISTS";
@@ -89,23 +105,28 @@ export async function createUser(params: {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      passwordHash,
-      notifications: {},
-      privacy: {},
-    },
-  });
+  const user: StoredUser = {
+    id: randomUUID(),
+    name,
+    email,
+    passwordHash,
+    createdAt: new Date().toISOString(),
+    notifications: {},
+    privacy: {},
+  };
 
-  const stored = toStoredUser(user);
+  usersMap.set(email, user);
+  saveToDisk();
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { passwordHash: _ph, ...safe } = stored;
+  const { passwordHash: _ph, ...safe } = user;
   return safe;
 }
 
-export async function verifyUser(email: string, password: string): Promise<Omit<StoredUser, "passwordHash"> | null> {
+export async function verifyUser(
+  email: string,
+  password: string
+): Promise<Omit<StoredUser, "passwordHash"> | null> {
   const user = await getUserByEmail(email);
   if (!user) return null;
   const ok = await bcrypt.compare(password, user.passwordHash);
@@ -119,28 +140,25 @@ export async function updateUserById(
   id: string,
   patch: Partial<Omit<StoredUser, "id" | "createdAt" | "passwordHash">>
 ): Promise<Omit<StoredUser, "passwordHash">> {
-  const existing = await prisma.user.findUnique({ where: { id } });
+  loadFromDisk();
+  let existing: StoredUser | undefined;
+  for (const user of usersMap.values()) {
+    if (user.id === id) { existing = user; break; }
+  }
   if (!existing) throw new Error("User not found");
 
-  const updateData: Record<string, unknown> = {};
-  if (patch.name !== undefined) updateData.name = patch.name;
-  if (patch.email !== undefined) updateData.email = normalizeEmail(patch.email);
-  if (patch.bio !== undefined) updateData.bio = patch.bio;
-  if (patch.dietaryPref !== undefined) updateData.dietaryPref = patch.dietaryPref;
-  if (patch.skillLevel !== undefined) updateData.skillLevel = patch.skillLevel;
-  if (patch.notifications !== undefined) {
-    const existingNotif = (existing.notifications as Record<string, unknown>) ?? {};
-    updateData.notifications = { ...existingNotif, ...patch.notifications };
-  }
-  if (patch.privacy !== undefined) {
-    const existingPrivacy = (existing.privacy as Record<string, unknown>) ?? {};
-    updateData.privacy = { ...existingPrivacy, ...patch.privacy };
-  }
+  const updated: StoredUser = {
+    ...existing,
+    ...patch,
+    notifications: { ...existing.notifications, ...(patch.notifications ?? {}) },
+    privacy: { ...existing.privacy, ...(patch.privacy ?? {}) },
+  };
 
-  const updated = await prisma.user.update({ where: { id }, data: updateData });
-  const stored = toStoredUser(updated);
+  usersMap.set(existing.email, updated);
+  saveToDisk();
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { passwordHash: _ph, ...safe } = stored;
+  const { passwordHash: _ph, ...safe } = updated;
   return safe;
 }
 
@@ -149,7 +167,11 @@ export async function changePasswordById(params: {
   currentPassword: string;
   newPassword: string;
 }): Promise<void> {
-  const existing = await prisma.user.findUnique({ where: { id: params.id } });
+  loadFromDisk();
+  let existing: StoredUser | undefined;
+  for (const user of usersMap.values()) {
+    if (user.id === params.id) { existing = user; break; }
+  }
   if (!existing) throw new Error("User not found");
 
   const ok = await bcrypt.compare(params.currentPassword, existing.passwordHash);
@@ -162,6 +184,8 @@ export async function changePasswordById(params: {
   if (!params.newPassword || params.newPassword.length < 8) {
     throw new Error("Password must be at least 8 characters");
   }
+
   const passwordHash = await bcrypt.hash(params.newPassword, 12);
-  await prisma.user.update({ where: { id: params.id }, data: { passwordHash } });
+  usersMap.set(existing.email, { ...existing, passwordHash });
+  saveToDisk();
 }
