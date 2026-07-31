@@ -25,9 +25,12 @@ An AI-powered cooking assistant built with Next.js and Google Gemini. Generate r
 | Layer | Technology |
 |---|---|
 | Framework | Next.js 16 (App Router) |
-| Language | TypeScript |
+| Backend | FastAPI (Python) & RAG Pipeline |
+| Database | Prisma & PostgreSQL |
+| Vector DB | ChromaDB |
+| Language | TypeScript & Python |
 | Styling | Tailwind CSS |
-| AI | Google Gemini 2.5 Flash |
+| AI / LLM | Google Gemini 2.5 Flash & SentenceTransformers |
 | Auth | NextAuth.js |
 | i18n | next-intl |
 | Animations | Framer Motion |
@@ -47,10 +50,18 @@ An AI-powered cooking assistant built with Next.js and Google Gemini. Generate r
 git clone https://github.com/UDaygupta12512/cook-assistant.git
 cd cook-assistant
 
-# Install dependencies
+# Install Frontend dependencies
 npm install
 
-# Create your environment file
+# Setup Python Backend (RAG Pipeline)
+cd python-backend
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+python ingest.py  # Builds the Chroma Vector DB
+
+# Create your environment file in the root directory
+cd ..
 cp .env.example .env.local
 ```
 
@@ -67,7 +78,13 @@ NEXTAUTH_URL=http://localhost:3000
 ### Run the Development Server
 
 ```bash
+# Terminal 1: Start the Next.js Frontend
 npm run dev
+
+# Terminal 2: Start the Python Backend
+cd python-backend
+.\venv\Scripts\activate
+python -m uvicorn main:app --port 8000 --reload
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -87,7 +104,12 @@ src/
 │   │   ├── pantry/
 │   │   ├── recipes/
 │   │   └── ...
-│   └── api/               # API routes (Gemini, Auth, etc.)
+│   └── api/               # Next.js API Routes (Proxies to Python)
+├── python-backend/        # Python FastAPI Microservice
+│   ├── data/              # JSON Datasets
+│   ├── chroma_db/         # Local Vector Database
+│   ├── ingest.py          # Embedding & Ingestion script
+│   └── main.py            # FastAPI Server (RAG Pipeline)
 ├── components/
 │   ├── home/              # Landing page components
 │   ├── layout/            # Navbar, Footer, Chatbot
