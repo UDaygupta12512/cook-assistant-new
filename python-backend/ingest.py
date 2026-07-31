@@ -1,5 +1,13 @@
 import json
 import os
+import warnings
+warnings.filterwarnings("ignore")
+
+# Use HF_TOKEN if available for faster downloads (optional but recommended)
+hf_token = os.getenv("HF_TOKEN")
+if hf_token:
+    os.environ["HUGGING_FACE_HUB_TOKEN"] = hf_token
+
 from langchain_community.document_loaders import JSONLoader
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
