@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   productionBrowserSourceMaps: false,
+  experimental: {
+    memoryBasedWorkersCount: true,
+    workerThreads: false,
+    cpus: 1,
+  },
   turbopack: {
     root: __dirname,
   },
