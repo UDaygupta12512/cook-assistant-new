@@ -8,3 +8,6 @@ sentence-transformers
 google-generativeai
 python-dotenv
 pydantic
+gTTS
+python-multipart
+edge-tts

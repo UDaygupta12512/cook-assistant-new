@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChefHat, MessageSquare, X, Send, Utensils, Loader2, Sparkles, Zap, ChevronRight, User } from "lucide-react";
+import { ChefHat, MessageSquare, X, Send, Utensils, Loader2, Sparkles, Zap, ChevronRight, User, Mic, Square } from "lucide-react";
 import { ALL_RECIPES } from "@/lib/recipe-data";
 import { findBestRecipeByDishName, findBestRecipesByIngredients, generateHowToCookRecipe, type GeneratedHowToCookRecipe } from "@/lib/culinary-engine";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDietaryStore } from "@/store/useDietaryStore";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 
 type Message = {
     id: string;
@@ -13,6 +14,8 @@ type Message = {
     sender: 'user' | 'chef';
     timestamp: Date;
 };
+
+const COLORS = ['#f97316', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
 
 export const ChefChatbot = () => {
     const { profile } = useDietaryStore();
@@ -25,13 +28,20 @@ export const ChefChatbot = () => {
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
-            text: "Hello! I'm Chef AI. I can find recipes, suggest dishes from your ingredients, answer cooking questions, and adapt recipes to your dietary goals. What's cooking?",
+            text: "Hello! I'm Chef AI. Ask me for recipes, nutrition comparisons, or use the microphone to talk hands-free!",
             sender: 'chef',
             timestamp: new Date()
         }
     ]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
+    
+    // Voice state
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<BlobPart[]>([]);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -87,7 +97,6 @@ export const ChefChatbot = () => {
         return `Recipe: ${r.name}\n\nIngredients:\n${ing}\n\nSteps:\n${steps}${tips}${safety}`;
     };
 
-    // Build conversation history for context
     const buildConversationHistory = () => {
         return messages.slice(-6).map(m => ({
             role: m.sender === 'user' ? 'user' : 'assistant',
@@ -98,7 +107,6 @@ export const ChefChatbot = () => {
     const getChefResponse = async (query: string): Promise<string> => {
         const lowerQuery = query.toLowerCase().trim();
 
-        // 0) If user asks for full instructions of last suggestion
         if (lastRecipe && isAffirmative(lowerQuery)) {
             if (lastRecipe.kind === "db") {
                 const r = ALL_RECIPES.find(x => x.id === lastRecipe.recipeId);
@@ -112,7 +120,6 @@ export const ChefChatbot = () => {
             }
         }
 
-        // 1) Ingredient-based requests ("I have ... what can I cook?")
         const extractedIngredients = extractIngredientList(query);
         if (extractedIngredients.length >= 2) {
             const matches = findBestRecipesByIngredients(extractedIngredients, { profile, limit: 3, minMatchRatio: 0.15 });
@@ -126,7 +133,6 @@ export const ChefChatbot = () => {
             return `I've crafted a custom recipe using your ingredients!\n\n${formatGeneratedBrief(generated)}`;
         }
 
-        // 3) Dish-name recipe requests (only if it's a very short query likely to be just a dish name)
         if (query.split(" ").length <= 4) {
             const best = findBestRecipeByDishName(query, { profile, limit: 1 })[0];
             if (best) {
@@ -135,7 +141,6 @@ export const ChefChatbot = () => {
             }
         }
 
-        // 4) Fallback to Gemini AI with conversation context for all other conversational questions
         try {
             const conversationHistory = buildConversationHistory();
             const res = await fetch("/api/chat", {
@@ -150,9 +155,7 @@ export const ChefChatbot = () => {
 
             if (res.ok) {
                 const data = await res.json();
-                if (data.reply) {
-                    return data.reply;
-                }
+                if (data.reply) return data.reply;
             }
         } catch (error) {
             console.error("Chat API error", error);
@@ -164,13 +167,7 @@ export const ChefChatbot = () => {
     const handleSend = async () => {
         if (!input.trim()) return;
 
-        const userMessage: Message = {
-            id: Date.now().toString(),
-            text: input,
-            sender: 'user',
-            timestamp: new Date()
-        };
-
+        const userMessage: Message = { id: Date.now().toString(), text: input, sender: 'user', timestamp: new Date() };
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setIsTyping(true);
@@ -178,15 +175,131 @@ export const ChefChatbot = () => {
         try {
             await new Promise(resolve => setTimeout(resolve, 650));
             const responseText = await getChefResponse(userMessage.text);
-            const chefResponse: Message = {
-                id: (Date.now() + 1).toString(),
-                text: responseText,
-                sender: 'chef',
-                timestamp: new Date()
-            };
+            const chefResponse: Message = { id: (Date.now() + 1).toString(), text: responseText, sender: 'chef', timestamp: new Date() };
             setMessages(prev => [...prev, chefResponse]);
         } finally {
             setIsTyping(false);
+        }
+    };
+
+    // --- Audio Logic ---
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = recorder;
+            audioChunksRef.current = [];
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
+            };
+
+            recorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                stream.getTracks().forEach(track => track.stop());
+                await sendAudioToBackend(audioBlob);
+            };
+
+            recorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error("Mic access denied or error:", err);
+            alert("Microphone access is required for Voice Chef.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            setIsTyping(true);
+        }
+    };
+
+    const sendAudioToBackend = async (blob: Blob) => {
+        try {
+            const formData = new FormData();
+            formData.append("audio", blob, "voice.webm");
+            formData.append("dietaryGoal", profile?.goal || 'Standard');
+
+            const res = await fetch("/api/voice-chat", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (res.ok) {
+                const transcription = decodeURIComponent(res.headers.get("X-Transcription") || "");
+                const replyText = decodeURIComponent(res.headers.get("X-Reply-Text") || "Voice response received.");
+                
+                if (transcription) {
+                     setMessages(prev => [...prev, { id: Date.now().toString(), text: `🎤 ${transcription}`, sender: 'user', timestamp: new Date() }]);
+                }
+                
+                setMessages(prev => [...prev, { id: (Date.now()+1).toString(), text: replyText, sender: 'chef', timestamp: new Date() }]);
+
+                const audioBlob = await res.blob();
+                if (audioBlob.size > 0) {
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    if (!audioRef.current) {
+                        audioRef.current = new Audio(audioUrl);
+                    } else {
+                        audioRef.current.src = audioUrl;
+                    }
+                    audioRef.current.play();
+                }
+            }
+        } catch (error) {
+            console.error("Voice chat failed", error);
+            setMessages(prev => [...prev, { id: Date.now().toString(), text: "Voice chat failed. Try again.", sender: 'chef', timestamp: new Date() }]);
+        } finally {
+            setIsTyping(false);
+        }
+    };
+
+    // --- Generative UI Parsing Logic ---
+    const renderMessageContent = (text: string) => {
+        try {
+            if (!text.trim().startsWith('{')) return text;
+            
+            const data = JSON.parse(text);
+            if (data.ui) {
+                return (
+                    <div className="flex flex-col gap-4 w-[280px]">
+                        <p>{data.text}</p>
+                        <div className="h-56 w-full bg-white dark:bg-zinc-800 rounded-xl p-3 shadow-sm border border-border mt-2">
+                            <p className="text-sm font-bold text-center mb-2">{data.ui.title}</p>
+                            {data.ui.type === 'pie_chart' ? (
+                                <ResponsiveContainer width="100%" height="80%">
+                                    <PieChart>
+                                        <Pie data={data.ui.data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={30} outerRadius={50} label={({name, value}) => `${name}: ${value}`}>
+                                            {data.ui.data.map((entry: any, index: number) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="80%">
+                                    <BarChart data={data.ui.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                        <XAxis dataKey="name" fontSize={10} tick={{fill: '#888'}} />
+                                        <YAxis fontSize={10} tick={{fill: '#888'}} />
+                                        <Tooltip cursor={{fill: 'rgba(0,0,0,0.05)'}} />
+                                        <Bar dataKey="value" radius={[4,4,0,0]}>
+                                            {data.ui.data.map((entry: any, index: number) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+            return data.text || text;
+        } catch (e) {
+            return text; // Not JSON, render normally
         }
     };
 
@@ -198,7 +311,7 @@ export const ChefChatbot = () => {
                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        className="absolute bottom-20 right-0 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] bg-white dark:bg-zinc-900 rounded-[2rem] shadow-big border border-border flex flex-col overflow-hidden"
+                        className="absolute bottom-20 right-0 w-[420px] max-w-[calc(100vw-2rem)] h-[620px] bg-white dark:bg-zinc-900 rounded-[2rem] shadow-big border border-border flex flex-col overflow-hidden"
                     >
                         {/* Header */}
                         <div className="p-6 bg-primary text-white flex items-center justify-between">
@@ -223,12 +336,12 @@ export const ChefChatbot = () => {
                         <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
                             {messages.map((msg) => (
                                 <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`flex gap-3 max-w-[85%] ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+                                    <div className={`flex gap-3 max-w-[90%] ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                                         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-soft ${msg.sender === 'user' ? 'bg-secondary text-primary' : 'bg-primary text-white'}`}>
                                             {msg.sender === 'user' ? <User className="w-5 h-5" /> : <ChefHat className="w-6 h-6" />}
                                         </div>
                                         <div className={`p-4 rounded-3xl text-sm font-medium leading-relaxed whitespace-pre-line ${msg.sender === 'user' ? 'bg-secondary/50 text-foreground rounded-tr-none' : 'bg-primary/5 text-foreground border border-primary/10 rounded-tl-none'}`}>
-                                            {msg.text}
+                                            {renderMessageContent(msg.text)}
                                         </div>
                                     </div>
                                 </div>
@@ -251,8 +364,8 @@ export const ChefChatbot = () => {
                         </div>
 
                         {/* Input */}
-                        <div className="p-6 border-t border-border bg-zinc-50/50 dark:bg-zinc-800/50">
-                            <div className="relative group">
+                        <div className="p-4 border-t border-border bg-zinc-50/50 dark:bg-zinc-800/50">
+                            <div className="flex items-center gap-2 relative">
                                 <textarea
                                     ref={inputRef}
                                     rows={1}
@@ -264,17 +377,28 @@ export const ChefChatbot = () => {
                                             handleSend();
                                         }
                                     }}
-                                    placeholder="Ask for a recipe or cooking tip..."
-                                    className="w-full pl-6 pr-14 py-4 rounded-2xl bg-white dark:bg-zinc-900 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none resize-none transition-all font-medium"
+                                    placeholder={isRecording ? "Listening..." : "Ask for a recipe or cooking tip..."}
+                                    disabled={isRecording}
+                                    className="w-full pl-5 pr-14 py-4 rounded-2xl bg-white dark:bg-zinc-900 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none resize-none transition-all font-medium disabled:opacity-50"
                                 />
-                                <button
-                                    onClick={handleSend}
-                                    disabled={!input.trim()}
-                                    aria-label="Send message"
-                                    className="absolute right-2 bottom-2 p-3 bg-primary text-white rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50 disabled:grayscale"
-                                >
-                                    <Send className="w-5 h-5" />
-                                </button>
+                                <div className="absolute right-2 flex gap-1 items-center">
+                                    {!input.trim() ? (
+                                        <button
+                                            onClick={isRecording ? stopRecording : startRecording}
+                                            className={`p-3 rounded-xl transition-all shadow-md ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-zinc-100 dark:bg-zinc-800 text-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+                                        >
+                                            {isRecording ? <Square className="w-5 h-5 fill-current" /> : <Mic className="w-5 h-5" />}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleSend}
+                                            disabled={!input.trim()}
+                                            className="p-3 bg-primary text-white rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                                        >
+                                            <Send className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </motion.div>
