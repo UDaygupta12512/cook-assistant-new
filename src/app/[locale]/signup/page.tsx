@@ -43,20 +43,35 @@ export default function SignUpPage() {
       return
     }
 
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long')
+      return
+    }
+
     setIsLoading(true)
     setError('')
 
     try {
+      console.log('Creating account for:', email)
+
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
       })
+
       const data = await res.json().catch(() => ({}))
+
       if (!res.ok) {
+        console.error('Registration failed:', data)
         setError(data?.error || 'Unable to create account')
         return
       }
+
+      console.log('Account created successfully, now signing in...')
+
+      // Wait a moment for the account to be fully created
+      await new Promise(resolve => setTimeout(resolve, 500))
 
       const result = await signIn('credentials', {
         redirect: false,
@@ -64,13 +79,26 @@ export default function SignUpPage() {
         password,
         callbackUrl,
       })
+
+      console.log('Sign-in result:', result)
+
       if (result?.error) {
-        setError('Account created, but sign-in failed. Please sign in.')
-        router.push(`/${locale}/signin`)
+        console.error('Sign-in failed after registration:', result.error)
+        setError('Account created successfully! Please sign in.')
+        // Redirect to signin with success message
+        router.push(`/${locale}/signin?message=Account created successfully`)
         return
       }
-      router.push(callbackUrl)
+
+      if (result?.ok) {
+        console.log('Successfully signed in, redirecting to dashboard')
+        router.push(callbackUrl)
+      } else {
+        setError('Account created, but automatic sign-in failed. Please sign in manually.')
+        router.push(`/${locale}/signin`)
+      }
     } catch (error) {
+      console.error('Signup error:', error)
       setError(error instanceof Error ? error.message : 'Something went wrong')
     } finally {
       setIsLoading(false)

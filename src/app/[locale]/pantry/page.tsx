@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, X, ChefHat, Trash2, Search, Sparkles, Package, Milk, Carrot, Beef, Cookie, Droplets, Filter, AlertTriangle, Clock } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, X, ChefHat, Trash2, Search, Sparkles, Package, Milk, Carrot, Beef, Cookie, Droplets, Filter, AlertTriangle, Clock, Edit3 } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { NavbarClient } from "@/components/layout/NavbarClient";
 import { Footer } from "@/components/layout/Footer";
 import { useNavbarTranslations } from "@/hooks/useNavbarTranslations";
+import { findBestRecipesByIngredients } from "@/lib/culinary-engine";
+import { useDietaryStore } from "@/store/useDietaryStore";
 
 interface PantryItem {
     name: string;
@@ -53,50 +55,19 @@ const SUGGESTED_INGREDIENTS: PantryItem[] = [
     { name: "Yogurt", nameHindi: "दही", category: "dairy", emoji: "🥣" },
 ];
 
-const RECIPE_SUGGESTIONS = [
-    {
-        name: "Butter Chicken",
-        nameHindi: "बटर चिकन",
-        emoji: "🍛",
-        matchedIngredients: ["Chicken", "Butter", "Tomatoes", "Onions", "Garlic"],
-        missingIngredients: ["Cream", "Kasuri Methi"],
-        color: "from-orange-500 to-red-500"
-    },
-    {
-        name: "Pasta Carbonara",
-        nameHindi: "पास्ता कार्बोनारा",
-        emoji: "🍝",
-        matchedIngredients: ["Pasta", "Eggs", "Cheese"],
-        missingIngredients: ["Pancetta", "Black Pepper"],
-        color: "from-amber-500 to-orange-500"
-    },
-    {
-        name: "Egg Fried Rice",
-        nameHindi: "एग फ्राइड राइस",
-        emoji: "🍳",
-        matchedIngredients: ["Rice", "Eggs", "Onions", "Garlic"],
-        missingIngredients: ["Soy Sauce", "Spring Onions"],
-        color: "from-yellow-500 to-amber-500"
-    },
-    {
-        name: "Aloo Palak",
-        nameHindi: "आलू पालक",
-        emoji: "🥬",
-        matchedIngredients: ["Potatoes", "Spinach", "Onions", "Garlic", "Ginger"],
-        missingIngredients: ["Green Chili"],
-        color: "from-green-500 to-emerald-500"
-    },
-];
+// Recipe suggestions will be dynamically generated based on pantry items
 
 const PANTRY_STORAGE_KEY = "cook-pantry-items";
 
 export default function PantryPage() {
     const navbarTranslations = useNavbarTranslations();
+    const { profile } = useDietaryStore();
     const [ingredients, setIngredients] = useState<PantryItem[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
     const [newIngredient, setNewIngredient] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
+    const [editingItem, setEditingItem] = useState<{ index: number; quantity: string } | null>(null);
 
     // Load from localStorage on mount
     useEffect(() => {
@@ -129,25 +100,52 @@ export default function PantryPage() {
 
     const addIngredient = (e: React.FormEvent) => {
         e.preventDefault();
-        if (newIngredient.trim()) {
-            setIngredients([...ingredients, {
-                name: newIngredient.trim(),
-                nameHindi: newIngredient.trim(),
-                category: "grains",
-                emoji: "📦"
-            }]);
-            setNewIngredient("");
+        const trimmed = newIngredient.trim();
+        if (!trimmed) return;
+
+        // Check for duplicates (case-insensitive)
+        const isDuplicate = ingredients.some(i => i.name.toLowerCase() === trimmed.toLowerCase());
+        if (isDuplicate) {
+            alert(`"${trimmed}" is already in your pantry!`);
+            return;
         }
+
+        setIngredients([...ingredients, {
+            name: trimmed,
+            nameHindi: trimmed,
+            category: "grains",
+            emoji: "📦",
+            quantity: "",
+            expiryDays: undefined
+        }]);
+        setNewIngredient("");
     };
 
     const addSuggestedIngredient = (item: PantryItem) => {
-        if (!ingredients.find(i => i.name === item.name)) {
-            setIngredients([...ingredients, item]);
+        const isDuplicate = ingredients.some(i => i.name.toLowerCase() === item.name.toLowerCase());
+        if (!isDuplicate) {
+            setIngredients([...ingredients, { ...item, quantity: "", expiryDays: undefined }]);
         }
     };
 
     const removeIngredient = (index: number) => {
         setIngredients(ingredients.filter((_, i) => i !== index));
+        if (editingItem?.index === index) {
+            setEditingItem(null);
+        }
+    };
+
+    const updateQuantity = (index: number, quantity: string) => {
+        const updated = [...ingredients];
+        updated[index] = { ...updated[index], quantity: quantity.trim() };
+        setIngredients(updated);
+        setEditingItem(null);
+    };
+
+    const updateExpiryDays = (index: number, days: number | undefined) => {
+        const updated = [...ingredients];
+        updated[index] = { ...updated[index], expiryDays: days };
+        setIngredients(updated);
     };
 
     const filteredIngredients = ingredients.map((item, originalIndex) => ({ item, originalIndex })).filter(({ item }) => {
@@ -161,7 +159,42 @@ export default function PantryPage() {
         return CATEGORIES.find(c => c.id === category)?.color || "bg-gray-100 text-gray-600";
     };
 
-    const expiringSoonItems = ingredients.filter(i => i.expiryDays !== undefined && i.expiryDays <= 3);
+    const expiringSoonItems = ingredients.filter(i => i.expiryDays !== undefined && i.expiryDays <= 3 && i.expiryDays >= 0);
+
+    // Dynamically match recipes based on actual pantry ingredients
+    const dynamicRecipes = useMemo(() => {
+        if (ingredients.length === 0) return [];
+
+        const ingredientNames = ingredients.map(i => i.name);
+        const matches = findBestRecipesByIngredients(ingredientNames, {
+            profile,
+            limit: 4,
+            minMatchRatio: 0.15
+        });
+
+        return matches.map(recipe => {
+            const recipeIngredients = recipe.ingredients.map(ing => ing.name.toLowerCase());
+            const matchedIngredients = ingredientNames.filter(pantryIng =>
+                recipeIngredients.some(recipeIng => recipeIng.includes(pantryIng.toLowerCase()) || pantryIng.toLowerCase().includes(recipeIng))
+            );
+
+            // Calculate missing ingredients
+            const allRecipeIngredientNames = recipe.ingredients.map(ing => ing.name);
+            const missingCount = Math.max(0, allRecipeIngredientNames.length - matchedIngredients.length);
+
+            return {
+                id: recipe.id,
+                name: recipe.title,
+                nameHindi: recipe.titleHindi || recipe.title,
+                emoji: recipe.image || "🍽️",
+                matchedIngredients: matchedIngredients.slice(0, 5),
+                missingCount,
+                totalIngredients: allRecipeIngredientNames.length,
+                color: recipe.color || "from-orange-500 to-red-500",
+                matchPercentage: Math.round((matchedIngredients.length / allRecipeIngredientNames.length) * 100)
+            };
+        }).filter(recipe => recipe.matchedIngredients.length >= 2); // Only show if at least 2 ingredients match
+    }, [ingredients, profile]);
 
     return (
         <div className="min-h-screen bg-background flex flex-col">
@@ -303,7 +336,7 @@ export default function PantryPage() {
                                 <Package className="w-5 h-5 text-primary" />
                                 Pantry Items / पैंट्री सामान
                             </h2>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                 {filteredIngredients.map(({ item, originalIndex }) => (
                                     <div
                                         key={originalIndex}
@@ -314,8 +347,39 @@ export default function PantryPage() {
                                             <p className="font-medium text-foreground truncate">{item.name}</p>
                                             <p className="text-xs text-primary">{item.nameHindi}</p>
                                             <div className="flex items-center gap-3 mt-1">
-                                                {item.quantity && (
-                                                    <p className="text-xs text-muted-foreground">{item.quantity}</p>
+                                                {editingItem?.index === originalIndex ? (
+                                                    <input
+                                                        type="text"
+                                                        autoFocus
+                                                        value={editingItem.quantity}
+                                                        onChange={(e) => setEditingItem({ ...editingItem, quantity: e.target.value })}
+                                                        onBlur={() => updateQuantity(originalIndex, editingItem.quantity)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') updateQuantity(originalIndex, editingItem.quantity);
+                                                            if (e.key === 'Escape') setEditingItem(null);
+                                                        }}
+                                                        className="text-xs bg-secondary/50 px-2 py-1 rounded border border-primary focus:outline-none w-20"
+                                                        placeholder="Qty..."
+                                                    />
+                                                ) : (
+                                                    <>
+                                                        {item.quantity ? (
+                                                            <button
+                                                                onClick={() => setEditingItem({ index: originalIndex, quantity: item.quantity || '' })}
+                                                                className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                                                            >
+                                                                {item.quantity}
+                                                                <Edit3 className="w-3 h-3" />
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => setEditingItem({ index: originalIndex, quantity: '' })}
+                                                                className="text-xs text-muted-foreground hover:text-primary"
+                                                            >
+                                                                + Add qty
+                                                            </button>
+                                                        )}
+                                                    </>
                                                 )}
                                                 {item.expiryDays !== undefined && (
                                                     <p className={`text-xs flex items-center gap-1 font-medium ${item.expiryDays <= 3 ? "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-sm" :
@@ -353,59 +417,72 @@ export default function PantryPage() {
                                 <Sparkles className="w-5 h-5 text-primary" />
                                 What You Can Make / आप क्या बना सकते हैं
                             </h2>
-                            <div className="space-y-4">
-                                {RECIPE_SUGGESTIONS.map((recipe, index) => (
-                                    <div
-                                        key={index}
-                                        className="relative overflow-hidden bg-white dark:bg-zinc-900 border border-border rounded-2xl hover:shadow-lg transition-all"
-                                    >
-                                        <div className={`absolute inset-0 bg-gradient-to-r ${recipe.color} opacity-5`} />
-                                        <div className="relative p-4">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <span className="text-3xl">{recipe.emoji}</span>
-                                                <div>
-                                                    <h3 className="font-bold text-foreground">{recipe.name}</h3>
-                                                    <p className="text-sm text-primary">{recipe.nameHindi}</p>
+                            {dynamicRecipes.length > 0 ? (
+                                <div className="space-y-4">
+                                    {dynamicRecipes.map((recipe) => (
+                                        <div
+                                            key={recipe.id}
+                                            className="relative overflow-hidden bg-white dark:bg-zinc-900 border border-border rounded-2xl hover:shadow-lg transition-all"
+                                        >
+                                            <div className={`absolute inset-0 bg-gradient-to-r ${recipe.color} opacity-5`} />
+                                            <div className="relative p-4">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <span className="text-3xl">{recipe.emoji}</span>
+                                                    <div className="flex-1">
+                                                        <h3 className="font-bold text-foreground">{recipe.name}</h3>
+                                                        <p className="text-sm text-primary">{recipe.nameHindi}</p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">
+                                                                {recipe.matchPercentage}% Match
+                                                            </span>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {recipe.matchedIngredients.length}/{recipe.totalIngredients} ingredients
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            <div className="mb-3">
-                                                <p className="text-xs text-muted-foreground mb-1">✅ You have:</p>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {recipe.matchedIngredients.slice(0, 3).map((ing, i) => (
-                                                        <span key={i} className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
-                                                            {ing}
-                                                        </span>
-                                                    ))}
-                                                    {recipe.matchedIngredients.length > 3 && (
-                                                        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
-                                                            +{recipe.matchedIngredients.length - 3}
-                                                        </span>
-                                                    )}
+                                                <div className="mb-3">
+                                                    <p className="text-xs text-muted-foreground mb-1">✅ You have:</p>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {recipe.matchedIngredients.slice(0, 4).map((ing, i) => (
+                                                            <span key={i} className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs">
+                                                                {ing}
+                                                            </span>
+                                                        ))}
+                                                        {recipe.matchedIngredients.length > 4 && (
+                                                            <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs">
+                                                                +{recipe.matchedIngredients.length - 4} more
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            <div className="mb-3">
-                                                <p className="text-xs text-muted-foreground mb-1">❌ Missing:</p>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {recipe.missingIngredients.map((ing, i) => (
-                                                        <span key={i} className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">
-                                                            {ing}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
+                                                {recipe.missingCount > 0 && (
+                                                    <div className="mb-3">
+                                                        <p className="text-xs text-muted-foreground mb-1">
+                                                            ❌ Missing: ~{recipe.missingCount} ingredient{recipe.missingCount !== 1 ? 's' : ''}
+                                                        </p>
+                                                    </div>
+                                                )}
 
-                                            <Link
-                                                href={`/recipes?search=${encodeURIComponent(recipe.name)}`}
-                                                className={`block w-full py-2 bg-gradient-to-r ${recipe.color} text-white rounded-xl text-sm font-medium hover:opacity-90 transition-all text-center`}
-                                            >
-                                                View Recipe / रेसिपी देखें
-                                            </Link>
+                                                <Link
+                                                    href={`/recipes/${recipe.id}`}
+                                                    className={`block w-full py-2 bg-gradient-to-r ${recipe.color} text-white rounded-xl text-sm font-medium hover:opacity-90 transition-all text-center`}
+                                                >
+                                                    View Recipe / रेसिपी देखें
+                                                </Link>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="bg-secondary/30 rounded-2xl p-8 text-center">
+                                    <ChefHat className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                                    <p className="text-muted-foreground mb-2">No recipe matches yet</p>
+                                    <p className="text-sm text-muted-foreground">Add more ingredients to get personalized suggestions!</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 

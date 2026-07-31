@@ -33,8 +33,9 @@ export default function SignInPage() {
     }
   }, [])
 
-  // Check for OAuth errors
+  // Check for OAuth errors and success messages
   const urlError = searchParams.get('error')
+  const successMessage = searchParams.get('message')
   const oauthError = urlError === 'OAuthSignin' || urlError === 'OAuthCallback'
     ? 'Single sign-on is not configured. Please use email/password sign-in.'
     : urlError === 'OAuthAccountNotLinked'
@@ -48,19 +49,32 @@ export default function SignInPage() {
     setError('')
 
     try {
+      console.log('Attempting to sign in with:', email)
+
       const result = await signIn('credentials', {
         redirect: false,
-        email,
+        email: email.trim(),
         password,
         callbackUrl,
       })
 
+      console.log('Sign-in result:', result)
+
       if (result?.error) {
-        setError('Invalid email or password')
-      } else {
+        console.error('Sign-in error:', result.error)
+        if (result.error === 'CredentialsSignin') {
+          setError('Invalid email or password. Please check your credentials.')
+        } else {
+          setError(`Sign-in failed: ${result.error}`)
+        }
+      } else if (result?.ok) {
+        console.log('Sign-in successful, redirecting to:', callbackUrl)
         router.push(callbackUrl)
+      } else {
+        setError('Sign-in failed. Please try again.')
       }
-    } catch {
+    } catch (error) {
+      console.error('Sign-in exception:', error)
       setError('An error occurred. Please try again.')
     } finally {
       setIsLoading(false)
@@ -98,6 +112,16 @@ export default function SignInPage() {
 
         {/* Card */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-border p-8">
+          {/* Success Messages */}
+          {successMessage && (
+            <div className="mb-6 rounded-xl bg-green-50 dark:bg-green-900/20 p-4 border border-green-200 dark:border-green-800">
+              <div className="flex items-start gap-3">
+                <span className="text-green-500 text-xl">✅</span>
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">{successMessage}</p>
+              </div>
+            </div>
+          )}
+
           {/* Error Messages */}
           {(error || oauthError) && (
             <div className="mb-6 rounded-xl bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800">

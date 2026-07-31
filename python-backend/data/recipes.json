@@ -1,0 +1,50 @@
+[
+  {
+    "id": "1",
+    "title": "Classic Spaghetti Carbonara",
+    "ingredients": ["Spaghetti", "Eggs", "Pecorino Romano cheese", "Guanciale", "Black pepper"],
+    "instructions": "Boil pasta. Fry guanciale. Whisk eggs and cheese. Combine hot pasta with guanciale, remove from heat, quickly stir in egg mixture to create a creamy sauce. Top with black pepper.",
+    "tips": "Never add cream to authentic carbonara. The creaminess comes from the emulsion of starchy pasta water, melted fat from guanciale, and eggs.",
+    "category": "Pasta"
+  },
+  {
+    "id": "2",
+    "title": "Perfect Roasted Chicken",
+    "ingredients": ["Whole chicken", "Salt", "Butter", "Lemon", "Rosemary"],
+    "instructions": "Dry the chicken thoroughly. Rub with butter, salt, and herbs. Stuff cavity with lemon. Roast at 425°F (220°C) until internal temperature reaches 165°F (74°C).",
+    "tips": "For extra crispy skin, dry brine the chicken with salt in the fridge uncovered overnight. Let it rest for 15 minutes before carving to keep juices inside.",
+    "category": "Poultry"
+  },
+  {
+    "id": "3",
+    "title": "Basic Vinaigrette",
+    "ingredients": ["Olive oil", "White wine vinegar", "Dijon mustard", "Salt", "Pepper"],
+    "instructions": "Whisk 1 part vinegar with 3 parts olive oil. Add a teaspoon of Dijon mustard to help emulsify. Season to taste.",
+    "tips": "If your salad dressing is too sharp, add a pinch of sugar or a dash of honey to balance the acidity.",
+    "category": "Sauces & Dressings"
+  },
+  {
+    "id": "4",
+    "title": "Fluffy Scrambled Eggs",
+    "ingredients": ["Eggs", "Butter", "Salt", "Chives"],
+    "instructions": "Whisk eggs well. Melt butter in a non-stick pan over medium-low heat. Add eggs and stir constantly with a spatula until softly set.",
+    "tips": "Remove the pan from the heat slightly before the eggs look done; they will continue cooking in the residual heat of the pan.",
+    "category": "Breakfast"
+  },
+  {
+    "id": "5",
+    "title": "Crispy Roasted Potatoes",
+    "ingredients": ["Russet potatoes", "Olive oil", "Salt", "Baking soda"],
+    "instructions": "Parboil potatoes in water with salt and a half teaspoon of baking soda. Drain and toss vigorously to rough up edges. Roast at 450°F (230°C) with olive oil until golden and crispy.",
+    "tips": "The baking soda breaks down the exterior of the potato, creating a starchy slurry that turns incredibly crunchy in the oven.",
+    "category": "Sides"
+  },
+  {
+    "id": "6",
+    "title": "Fixing Salty Food",
+    "ingredients": ["Water", "Potato", "Acid (lemon or vinegar)"],
+    "instructions": "N/A",
+    "tips": "If a soup or stew is too salty, you can add water, unsalted broth, or a squeeze of lemon juice to balance it. Contrary to popular belief, adding a raw potato does not significantly absorb salt.",
+    "category": "Technique"
+  }
+]

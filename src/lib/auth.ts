@@ -17,6 +17,11 @@ export const authOptions: NextAuthOptions = {
   // No adapter: strictly strategy "jwt"
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
+  },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: "/signin",
@@ -31,10 +36,29 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
-        const user = await verifyUser(credentials.email, credentials.password)
-        if (!user) return null
-        return { ...user, image: null }
+        if (!credentials?.email || !credentials?.password) {
+          console.log("Missing credentials")
+          return null
+        }
+
+        try {
+          const user = await verifyUser(credentials.email, credentials.password)
+          if (!user) {
+            console.log("User verification failed for:", credentials.email)
+            return null
+          }
+
+          console.log("User authenticated successfully:", user.email)
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: null
+          }
+        } catch (error) {
+          console.error("Auth error:", error)
+          return null
+        }
       },
     }),
     ...(process.env.GOOGLE_CLIENT_ID &&
@@ -64,20 +88,25 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = (token.id as string) ?? (token.sub as string)
-        session.user.name = token.name
-        session.user.email = token.email
-        session.user.image = token.picture
+        session.user.name = token.name as string
+        session.user.email = token.email as string
+        session.user.image = token.picture as string
       }
       return session
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
+      // Persist the OAuth account-id or user id to the token right after signin
       if (user) {
         token.id = user.id
+        token.email = user.email
+        token.name = user.name
       }
+
+      // Return previous token if the access token has not expired yet
       return token
     },
   },
-  secret: process.env.NEXTAUTH_SECRET || "fallback-secret-dev",
+  secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
 }
 

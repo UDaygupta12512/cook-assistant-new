@@ -1,7 +1,5 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 
 export type StoredUser = {
   id: string;
@@ -26,46 +24,46 @@ export type StoredUser = {
   };
 };
 
-function usersFilePath() {
-  return path.join(process.cwd(), "data", "users.json");
-}
-
-async function ensureUsersFile(): Promise<void> {
-  const file = usersFilePath();
-  const dir = path.dirname(file);
-  await fs.mkdir(dir, { recursive: true });
-  try {
-    await fs.access(file);
-  } catch {
-    await fs.writeFile(file, JSON.stringify({ users: [] }, null, 2), "utf8");
-  }
-}
-
-async function readUsers(): Promise<StoredUser[]> {
-  await ensureUsersFile();
-  const raw = await fs.readFile(usersFilePath(), "utf8");
-  const parsed = JSON.parse(raw) as { users?: StoredUser[] };
-  return Array.isArray(parsed.users) ? parsed.users : [];
-}
-
-async function writeUsers(users: StoredUser[]): Promise<void> {
-  await ensureUsersFile();
-  await fs.writeFile(usersFilePath(), JSON.stringify({ users }, null, 2), "utf8");
-}
-
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+// Convert Prisma user record to StoredUser shape
+function toStoredUser(dbUser: {
+  id: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+  bio: string | null;
+  dietaryPref: string | null;
+  skillLevel: string | null;
+  notifications: unknown;
+  privacy: unknown;
+  createdAt: Date;
+}): StoredUser {
+  return {
+    id: dbUser.id,
+    name: dbUser.name,
+    email: dbUser.email,
+    passwordHash: dbUser.passwordHash,
+    createdAt: dbUser.createdAt.toISOString(),
+    bio: dbUser.bio ?? undefined,
+    dietaryPref: dbUser.dietaryPref ?? undefined,
+    skillLevel: dbUser.skillLevel ?? undefined,
+    notifications: (dbUser.notifications as StoredUser["notifications"]) ?? undefined,
+    privacy: (dbUser.privacy as StoredUser["privacy"]) ?? undefined,
+  };
+}
+
 export async function getUserByEmail(email: string): Promise<StoredUser | null> {
   const e = normalizeEmail(email);
-  const users = await readUsers();
-  return users.find((u) => normalizeEmail(u.email) === e) ?? null;
+  const user = await prisma.user.findUnique({ where: { email: e } });
+  return user ? toStoredUser(user) : null;
 }
 
 export async function getUserById(id: string): Promise<StoredUser | null> {
-  const users = await readUsers();
-  return users.find((u) => u.id === id) ?? null;
+  const user = await prisma.user.findUnique({ where: { id } });
+  return user ? toStoredUser(user) : null;
 }
 
 export async function createUser(params: {
@@ -81,8 +79,9 @@ export async function createUser(params: {
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) throw new Error("Valid email is required");
   if (!password || password.length < 8) throw new Error("Password must be at least 8 characters");
 
-  const users = await readUsers();
-  if (users.some((u) => normalizeEmail(u.email) === email)) {
+  // Check if user already exists
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
     const err = new Error("Email already in use");
     // @ts-expect-error add code for API layer
     err.code = "EMAIL_EXISTS";
@@ -90,20 +89,19 @@ export async function createUser(params: {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user: StoredUser = {
-    id: crypto.randomUUID(),
-    name,
-    email,
-    passwordHash,
-    createdAt: new Date().toISOString(),
-  };
+  const user = await prisma.user.create({
+    data: {
+      name,
+      email,
+      passwordHash,
+      notifications: {},
+      privacy: {},
+    },
+  });
 
-  users.push(user);
-  await writeUsers(users);
-
-  // omit passwordHash from return
+  const stored = toStoredUser(user);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { passwordHash: _ph, ...safe } = user;
+  const { passwordHash: _ph, ...safe } = stored;
   return safe;
 }
 
@@ -121,21 +119,28 @@ export async function updateUserById(
   id: string,
   patch: Partial<Omit<StoredUser, "id" | "createdAt" | "passwordHash">>
 ): Promise<Omit<StoredUser, "passwordHash">> {
-  const users = await readUsers();
-  const idx = users.findIndex((u) => u.id === id);
-  if (idx === -1) throw new Error("User not found");
-  const existing = users[idx];
-  const updated: StoredUser = {
-    ...existing,
-    ...patch,
-    // merge nested objects safely
-    notifications: { ...existing.notifications, ...patch.notifications },
-    privacy: { ...existing.privacy, ...patch.privacy },
-  };
-  users[idx] = updated;
-  await writeUsers(users);
+  const existing = await prisma.user.findUnique({ where: { id } });
+  if (!existing) throw new Error("User not found");
+
+  const updateData: Record<string, unknown> = {};
+  if (patch.name !== undefined) updateData.name = patch.name;
+  if (patch.email !== undefined) updateData.email = normalizeEmail(patch.email);
+  if (patch.bio !== undefined) updateData.bio = patch.bio;
+  if (patch.dietaryPref !== undefined) updateData.dietaryPref = patch.dietaryPref;
+  if (patch.skillLevel !== undefined) updateData.skillLevel = patch.skillLevel;
+  if (patch.notifications !== undefined) {
+    const existingNotif = (existing.notifications as Record<string, unknown>) ?? {};
+    updateData.notifications = { ...existingNotif, ...patch.notifications };
+  }
+  if (patch.privacy !== undefined) {
+    const existingPrivacy = (existing.privacy as Record<string, unknown>) ?? {};
+    updateData.privacy = { ...existingPrivacy, ...patch.privacy };
+  }
+
+  const updated = await prisma.user.update({ where: { id }, data: updateData });
+  const stored = toStoredUser(updated);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { passwordHash: _ph, ...safe } = updated;
+  const { passwordHash: _ph, ...safe } = stored;
   return safe;
 }
 
@@ -144,10 +149,9 @@ export async function changePasswordById(params: {
   currentPassword: string;
   newPassword: string;
 }): Promise<void> {
-  const users = await readUsers();
-  const idx = users.findIndex((u) => u.id === params.id);
-  if (idx === -1) throw new Error("User not found");
-  const existing = users[idx];
+  const existing = await prisma.user.findUnique({ where: { id: params.id } });
+  if (!existing) throw new Error("User not found");
+
   const ok = await bcrypt.compare(params.currentPassword, existing.passwordHash);
   if (!ok) {
     const err = new Error("Current password is incorrect");
@@ -159,7 +163,5 @@ export async function changePasswordById(params: {
     throw new Error("Password must be at least 8 characters");
   }
   const passwordHash = await bcrypt.hash(params.newPassword, 12);
-  users[idx] = { ...existing, passwordHash };
-  await writeUsers(users);
+  await prisma.user.update({ where: { id: params.id }, data: { passwordHash } });
 }
-

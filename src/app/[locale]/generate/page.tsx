@@ -30,11 +30,27 @@ export default function GenerateRecipePage() {
 
     const handleAddIngredient = (e?: React.FormEvent, ing?: string) => {
         if (e) e.preventDefault();
-        const valueToAdd = ing || currentInput;
-        if (valueToAdd.trim() && !ingredients.includes(valueToAdd.trim())) {
-            setIngredients([...ingredients, valueToAdd.trim()]);
-            if (!ing) setCurrentInput("");
+        const valueToAdd = (ing || currentInput).trim();
+
+        if (!valueToAdd) return;
+
+        // Normalize and check for duplicates (case-insensitive)
+        const normalized = valueToAdd.toLowerCase();
+        const isDuplicate = ingredients.some(existing => existing.toLowerCase() === normalized);
+
+        if (isDuplicate) {
+            alert(`"${valueToAdd}" is already added!`);
+            return;
         }
+
+        // Limit to 15 ingredients for better results
+        if (ingredients.length >= 15) {
+            alert('Maximum 15 ingredients allowed for best results');
+            return;
+        }
+
+        setIngredients([...ingredients, valueToAdd]);
+        if (!ing) setCurrentInput("");
     };
 
     const removeIngredient = (ingToRemove: string) => {
@@ -42,153 +58,189 @@ export default function GenerateRecipePage() {
     };
 
     const handleGenerate = async () => {
-        if (ingredients.length === 0) return;
+        if (ingredients.length === 0) {
+            alert('Please add at least one ingredient');
+            return;
+        }
 
         setIsGenerating(true);
-
-        // Simulate AI generation time
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        // Use centralized matching that also respects allergies/dislikes.
-        const matches = findBestRecipesByIngredients(ingredients, {
-            profile,
-            limit: 10,
-            minMatchRatio: 0.15
-        });
-
-        // Enhanced AI generator: ALWAYS Dynamically create a custom recipe via Gemini API
-        const dishName = ingredients.slice(0, 3).join(" & ") + " Surprise";
-        let aiRecipeData = null;
+        setHasGenerated(false);
 
         try {
-            const res = await fetch("/api/generate-recipe", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    dishName,
-                    dietaryGoal: profile?.goal || 'Standard',
-                    spiceLevel,
-                    mealType,
-                    ingredientsList: ingredients
-                }),
+            // Simulate AI generation time
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            // Use centralized matching that also respects allergies/dislikes.
+            const matches = findBestRecipesByIngredients(ingredients, {
+                profile,
+                limit: 10,
+                minMatchRatio: 0.15
             });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.recipe && data.source === "gemini") {
-                    aiRecipeData = data.recipe;
+
+            // Enhanced AI generator: ALWAYS Dynamically create a custom recipe via Gemini API
+            const dishName = ingredients.slice(0, 3).join(" & ") + " Delight";
+            let aiRecipeData = null;
+
+            try {
+                const res = await fetch("/api/generate-recipe", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        dishName,
+                        dietaryGoal: profile?.goal || 'Standard',
+                        spiceLevel,
+                        mealType,
+                        ingredientsList: ingredients
+                    }),
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.recipe && data.source === "gemini") {
+                        aiRecipeData = data.recipe;
+                    }
+                }
+            } catch (error) {
+                console.error("AI API Error on generate page:", error);
+            }
+
+            let dynamic: any;
+            if (aiRecipeData) {
+                dynamic = {
+                    name: aiRecipeData.name,
+                    hindi: aiRecipeData.hindi || aiRecipeData.name,
+                    description: aiRecipeData.description,
+                    descriptionHindi: aiRecipeData.descriptionHindi || aiRecipeData.description,
+                    prepTime: aiRecipeData.prepTime || "15 min",
+                    cookTime: aiRecipeData.cookTime || "25 min",
+                    servings: aiRecipeData.servings || 4,
+                    difficulty: aiRecipeData.difficulty || "Medium",
+                    ingredients: aiRecipeData.ingredients || [],
+                    steps: (aiRecipeData.steps || []).map((s: any) => ({
+                        english: typeof s === 'string' ? s : (s.english || ''),
+                        hindi: typeof s === 'string' ? s : (s.hindi || '')
+                    })),
+                    tips: aiRecipeData.tips || [],
+                    tipsHindi: aiRecipeData.tipsHindi || [],
+                    nutrition: aiRecipeData.nutrition || { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0 }
+                };
+            } else {
+                // Local Fallback
+                const localFallback = generateHowToCookRecipe(dishName, profile?.goal || 'Standard', profile);
+                dynamic = {
+                    name: localFallback.name,
+                    hindi: localFallback.hindi,
+                    description: localFallback.description,
+                    descriptionHindi: localFallback.descriptionHindi,
+                    prepTime: localFallback.prepTime,
+                    cookTime: localFallback.cookTime,
+                    servings: localFallback.servings,
+                    difficulty: localFallback.difficulty,
+                    ingredients: localFallback.ingredients,
+                    steps: localFallback.steps,
+                    tips: localFallback.tips || [],
+                    tipsHindi: localFallback.tipsHindi || [],
+                    nutrition: { calories: 450, protein: 15, carbs: 40, fat: 12, fiber: 4, sugar: 5, sodium: 400 }
+                };
+            }
+
+            const aiRecipe: Recipe = {
+                id: Math.floor(100000 + Math.random() * 900000),
+                title: dynamic.name,
+                titleHindi: dynamic.hindi,
+                description: dynamic.description,
+                descriptionHindi: dynamic.descriptionHindi,
+                category: "Dinner",
+                categoryHindi: "रात का खाना",
+                prepTime: dynamic.prepTime,
+                cookTime: dynamic.cookTime,
+                totalTime: (() => {
+                    const parse = (raw: string | number): number => {
+                        if (typeof raw === 'number') return raw;
+                        if (!raw) return 0;
+                        const s = String(raw).toLowerCase().trim();
+                        let total = 0;
+                        const hrMatch = s.match(/(\d+)\s*h/);
+                        const minMatch = s.match(/(\d+)\s*m/);
+                        if (hrMatch) total += parseInt(hrMatch[1]) * 60;
+                        if (minMatch) total += parseInt(minMatch[1]);
+                        if (!hrMatch && !minMatch) { const n = parseInt(s); if (!isNaN(n)) total = n; }
+                        return total;
+                    };
+                    const total = parse(dynamic.prepTime) + parse(dynamic.cookTime);
+                    return total >= 60 ? `${Math.floor(total / 60)}h ${total % 60}m` : `${total} min`;
+                })(),
+                servings: dynamic.servings,
+                rating: 5.0,
+                image: "✨",
+                color: "bg-purple-100 text-purple-600",
+                difficulty: dynamic.difficulty,
+                ingredients: dynamic.ingredients.map((i: string | any) => {
+                    if (typeof i === 'string') {
+                        const match = i.match(/^([\d./]+)\s*([\w]+)?\s+(.+)$/);
+                        if (match) {
+                            return { name: match[3], amount: match[1], unit: match[2] || "" };
+                        }
+                        return { name: i, amount: "", unit: "" };
+                    }
+                    return {
+                        name: i.name || i.english || '',
+                        amount: i.amount || "",
+                        unit: i.unit || ""
+                    };
+                }),
+                steps: dynamic.steps.map((s: any) => s.english || s),
+                stepsHindi: dynamic.steps.map((s: any) => s.hindi || s),
+                chefTips: dynamic.tips,
+                chefTipsHindi: dynamic.tipsHindi,
+                substitutions: [],
+                nutrition: dynamic.nutrition,
+                tags: ["AI Generated", "Unique", profile?.goal || "Standard", ...ingredients].filter(Boolean)
+            };
+
+            // Cache with expiry and size management
+            if (typeof window !== 'undefined') {
+                try {
+                    const cacheKey = `cook-ai-recipe-${aiRecipe.id}`;
+                    const cacheData = {
+                        recipe: aiRecipe,
+                        timestamp: Date.now(),
+                        expiresIn: 7 * 24 * 60 * 60 * 1000 // 7 days
+                    };
+
+                    // Clean old recipes before saving (keep only last 20)
+                    const allKeys = Object.keys(localStorage).filter(k => k.startsWith('cook-ai-recipe-'));
+                    if (allKeys.length >= 20) {
+                        // Remove oldest entries
+                        const keysWithTimestamps = allKeys.map(key => {
+                            try {
+                                const data = JSON.parse(localStorage.getItem(key) || '{}');
+                                return { key, timestamp: data.timestamp || 0 };
+                            } catch {
+                                return { key, timestamp: 0 };
+                            }
+                        }).sort((a, b) => a.timestamp - b.timestamp);
+
+                        // Remove oldest 5
+                        keysWithTimestamps.slice(0, 5).forEach(({ key }) => {
+                            localStorage.removeItem(key);
+                        });
+                    }
+
+                    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+                } catch (e) {
+                    console.warn('Failed to cache recipe:', e);
                 }
             }
+
+            setGeneratedRecipes([aiRecipe, ...matches]);
+            setHasGenerated(true);
         } catch (error) {
-            console.error("AI API Error on generate page:", error);
+            console.error('Recipe generation failed:', error);
+            alert('Failed to generate recipes. Please try again.');
+        } finally {
+            setIsGenerating(false);
         }
-
-        let dynamic: any;
-        if (aiRecipeData) {
-            dynamic = {
-                name: aiRecipeData.name,
-                hindi: aiRecipeData.hindi || aiRecipeData.name,
-                description: aiRecipeData.description,
-                descriptionHindi: aiRecipeData.descriptionHindi || aiRecipeData.description,
-                prepTime: aiRecipeData.prepTime || "15 min",
-                cookTime: aiRecipeData.cookTime || "25 min",
-                servings: aiRecipeData.servings || 4,
-                difficulty: aiRecipeData.difficulty || "Medium",
-                // Ensure ingredients are strings
-                ingredients: aiRecipeData.ingredients || [],
-                // Ensure steps follow the {english, hindi} setup expected below
-                steps: (aiRecipeData.steps || []).map((s: any) => ({
-                    english: typeof s === 'string' ? s : (s.english || ''),
-                    hindi: typeof s === 'string' ? s : (s.hindi || '')
-                })),
-                tips: aiRecipeData.tips || [],
-                tipsHindi: aiRecipeData.tipsHindi || [],
-                nutrition: aiRecipeData.nutrition || { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0 }
-            };
-        } else {
-            // Local Fallback
-            const localFallback = generateHowToCookRecipe(dishName, profile?.goal || 'Standard', profile);
-            dynamic = {
-                name: localFallback.name,
-                hindi: localFallback.hindi,
-                description: localFallback.description,
-                descriptionHindi: localFallback.descriptionHindi,
-                prepTime: localFallback.prepTime,
-                cookTime: localFallback.cookTime,
-                servings: localFallback.servings,
-                difficulty: localFallback.difficulty,
-                ingredients: localFallback.ingredients,
-                steps: localFallback.steps, // already has english and hindi fields
-                tips: localFallback.tips || [],
-                tipsHindi: localFallback.tipsHindi || [],
-                nutrition: { calories: 450, protein: 15, carbs: 40, fat: 12, fiber: 4, sugar: 5, sodium: 400 } // Local Fallback Default
-            };
-        }
-
-        const aiRecipe: Recipe = {
-            id: Math.floor(100000 + Math.random() * 900000), // Ensure robust 6 digit ID
-            title: dynamic.name,
-            titleHindi: dynamic.hindi,
-            description: dynamic.description,
-            descriptionHindi: dynamic.descriptionHindi,
-            category: "Dinner",
-            categoryHindi: "रात का खाना",
-            prepTime: dynamic.prepTime,
-            cookTime: dynamic.cookTime,
-            totalTime: (() => {
-                const parse = (raw: string | number): number => {
-                    if (typeof raw === 'number') return raw;
-                    if (!raw) return 0;
-                    const s = String(raw).toLowerCase().trim();
-                    let total = 0;
-                    const hrMatch = s.match(/(\d+)\s*h/);
-                    const minMatch = s.match(/(\d+)\s*m/);
-                    if (hrMatch) total += parseInt(hrMatch[1]) * 60;
-                    if (minMatch) total += parseInt(minMatch[1]);
-                    if (!hrMatch && !minMatch) { const n = parseInt(s); if (!isNaN(n)) total = n; }
-                    return total;
-                };
-                const total = parse(dynamic.prepTime) + parse(dynamic.cookTime);
-                return total >= 60 ? `${Math.floor(total / 60)}h ${total % 60}m` : `${total} min`;
-            })(),
-            servings: dynamic.servings,
-            rating: 5.0,
-            image: "✨",
-            color: "bg-purple-100 text-purple-600",
-            difficulty: dynamic.difficulty,
-            ingredients: dynamic.ingredients.map((i: string | any) => {
-                if (typeof i === 'string') {
-                    // Try to parse "2 cups flour" format
-                    const match = i.match(/^([\d./]+)\s*([\w]+)?\s+(.+)$/);
-                    if (match) {
-                        return { name: match[3], amount: match[1], unit: match[2] || "" };
-                    }
-                    return { name: i, amount: "", unit: "" };
-                }
-                return {
-                    name: i.name || i.english || '',
-                    amount: i.amount || "",
-                    unit: i.unit || ""
-                };
-            }),
-            steps: dynamic.steps.map((s: any) => s.english || s),
-            stepsHindi: dynamic.steps.map((s: any) => s.hindi || s),
-            chefTips: dynamic.tips,
-            chefTipsHindi: dynamic.tipsHindi,
-            substitutions: [],
-            nutrition: dynamic.nutrition,
-            tags: ["AI Generated", "Unique", profile?.goal || "Standard", ...ingredients].filter(Boolean)
-        };
-
-        // Cache the dynamically generated recipe in localStorage so `/recipes/[id]` can read it!
-        if (typeof window !== 'undefined') {
-            localStorage.setItem(`cook-ai-recipe-${aiRecipe.id}`, JSON.stringify(aiRecipe));
-        }
-
-        // Put the AI Generated recipe first, followed by DB matches
-        setGeneratedRecipes([aiRecipe, ...matches]);
-
-        setHasGenerated(true);
-        setIsGenerating(false);
     };
 
     return (
