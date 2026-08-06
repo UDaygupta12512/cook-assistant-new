@@ -24,7 +24,7 @@ export default function SignUpPage() {
   useEffect(() => {
     let mounted = true
     getProviders()
-      .then((p) => {
+      .then((p: any) => {
         if (mounted) setProviders(p)
       })
       .catch(() => {
