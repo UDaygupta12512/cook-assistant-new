@@ -1,87 +1,178 @@
-# CookAssistant 🍳
+# CookAssistant 🍳 — AI & ML-Powered Culinary Intelligence Platform
 
-An AI-powered cooking assistant built with Next.js and Google Gemini. Generate recipes, analyze nutrition, scan ingredients, cook hands-free with voice, and more — all in one app.
+[![Next.js 16](https://img.shields.io/badge/Next.js-16.2.0-black?style=flat&logo=next.js)](https://nextjs.org/)
+[![React 19](https://img.shields.io/badge/React-19.2.0-blue?style=flat&logo=react)](https://react.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![ChromaDB](https://img.shields.io/badge/Vector_DB-ChromaDB-purple?style=flat)](https://www.trychroma.com/)
+[![Gemini 2.5 Flash](https://img.shields.io/badge/LLM-Gemini_2.5_Flash-4285F4?style=flat&logo=google)](https://ai.google.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Features
+An enterprise-grade, multimodal AI culinary platform engineered with **Next.js 16 (App Router)**, **Google Gemini 2.5 Flash**, and a **Python FastAPI RAG (Retrieval-Augmented Generation)** microservice. CookAssistant combines Large Language Models, Computer Vision, Word Vector Embeddings, and Real-Time Nutrition Analytics to revolutionize how people plan, cook, and track their meals.
 
-- **AI Recipe Generator** — Generate detailed, step-by-step recipes for any dish instantly using Gemini AI
-- **Voice Control** — Cook completely hands-free with speech synthesis and voice navigation
-- **Image Scan** — Photograph your fridge or pantry and get recipe suggestions from what you have
-- **How to Cook** — Interactive step-by-step cooking guide with text-to-speech in English and Hindi
-- **Nutrition Analyzer** — Get a full nutritional breakdown, health score, macros, micronutrients, and diet compatibility for any food
-- **Health Check** — Calculate your BMI, daily calorie needs (TDEE), and personalized macro targets
-- **Healthy Swaps** — Discover science-backed ingredient substitutions with nutrition comparisons
-- **Smart Pantry** — Track your ingredients and reduce food waste with expiry alerts
-- **Cuisines Explorer** — Browse dishes from cuisines around the world
-- **Chef Chatbot** — Ask any cooking question and get instant AI answers
-- **My Recipes** — Save and manage your favourite recipes
-- **Meal Planner** — Plan your meals for the week
-- **Cooking Timer** — Built-in timer for your recipes
-- **Unit Converter** — Convert between cooking measurements instantly
-- **Internationalization** — Full English and Hindi language support
+---
 
-## Tech Stack
+## 🌟 Key Features & AI Capabilities
 
-| Layer | Technology |
+### 1. 🤖 Multimodal AI Recipe Generator (`/generate`)
+- Generates structured, gourmet recipes tailored to specific dietary goals (*High Protein, Keto, Vegan, Mediterranean, Balanced*).
+- Provides exact ingredient quantities, culinary chemistry tips (Maillard reaction, acid balancing), and bilingual steps.
+
+### 2. 📅 7-Day Smart Meal Planner (`/meal-planner`)
+- AI-driven weekly planner balancing calories and macros across 4 daily meals (Breakfast, Lunch, Dinner, Snack).
+- Real-time macro aggregation (Calories, Protein, Carbs, Fat).
+- **1-Click 7-Day Grocery List Export** with instant clipboard synchronization and `localStorage` persistence.
+
+### 3. 🎯 5D Flavor Matchmaker (`/matchmaker`)
+- Interactive swipe-based craving analysis calculating a 5-dimensional sensory flavor vector (**Spice Heat, Umami, Crunch, Richness, Freshness**).
+- Computes mathematical similarity against the catalog (`ALL_RECIPES`) to deliver top "Soul-Dish" matches with visual flavor radar breakdowns.
+
+### 4. 🧭 Culinary Adventure Mode (`/adventure`)
+- Fusion recipe synthesizer allowing users to mix unpredictable culinary bases, protagonist ingredients, and flavor climaxes.
+- Generates scientific cooking secrets, step-by-step timelines, and saves directly to the user cookbook.
+
+### 5. ⚡ Hangry Emergency Station (`/hangry`)
+- Ultra-fast cooking engine with appliance filtering (**Microwave, Air Fryer, Toaster, 1-Pan Stovetop, No-Cook**).
+- **AI Panic Fridge Rescue**: Type 2–3 ingredients to generate an instant 5-minute meal.
+
+### 6. 👁️ Multimodal Vision Pantry Scanner (`/scan`)
+- Multimodal OCR & object recognition detecting ingredients from fridge or pantry photos.
+- Interactive tag curation (add/remove detected items) and 1-click sync to your digital pantry.
+
+### 7. 🔄 Smart Substitution & Vector Similarity (`/healthy-swaps`)
+- NLP-driven substitution engine using culinary word embeddings and cosine similarity to discover healthy, allergy-safe ingredient swaps.
+
+### 8. 📊 Real-Time Nutritional Analytics (`/analytics`)
+- Dynamic Generative UI dashboards powered by **Recharts**.
+- Computes daily calorie intake trajectories, macro energy ratios, and cuisine palette distribution from live user activity.
+- Includes a seamless **Live Stats vs. Interactive Demo** toggle for showcasing.
+
+### 9. 🎙️ Hands-Free Voice Assistant (`/how-to-cook`)
+- Speech synthesis (Text-to-Speech) in English and Hindi for hands-free kitchen navigation.
+- Step-by-step guided mode with interactive ingredient checkboxes and integrated timers.
+
+### 10. 🌐 Full Internationalization (i18n)
+- Native bilingual support (**English & Hindi**) across all pages, recipes, and UI components via `next-intl`.
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    User([User / Browser]) <--> NextClient[Next.js 16 Frontend App Router]
+    NextClient <--> NextAPI[Next.js API Routes /src/app/api]
+    
+    subgraph AI & ML Layer
+        NextAPI <--> Gemini[Google Gemini 2.5 Flash API]
+        NextAPI <--> FastAPIServer[FastAPI Microservice :8000]
+        FastAPIServer <--> Chroma[ChromaDB Vector Store]
+        FastAPIServer <--> SentenceTransformer[SentenceTransformers Embeddings]
+    end
+
+    subgraph Client State & Storage
+        NextClient <--> LocalStore[(Local Storage Persistence)]
+        NextAPI <--> Prisma[(Prisma ORM / PostgreSQL / SQLite)]
+    end
+```
+
+---
+
+## 💻 Tech Stack
+
+| Layer | Technologies |
 |---|---|
-| Framework | Next.js 16 (App Router) |
-| Backend | FastAPI (Python) & RAG Pipeline |
-| Database | Prisma & PostgreSQL |
-| Vector DB | ChromaDB |
-| Language | TypeScript & Python |
-| Styling | Tailwind CSS |
-| AI / LLM | Google Gemini 2.5 Flash & SentenceTransformers |
-| Auth | NextAuth.js |
-| i18n | next-intl |
-| Animations | Framer Motion |
-| Icons | Lucide React |
+| **Frontend Framework** | Next.js 16 (App Router, Turbopack, React 19) |
+| **Styling & Design** | Tailwind CSS, Lucide React, Glassmorphism, Tailwind Animate |
+| **Data Visualization** | Recharts (Generative UI charts & responsive dashboards) |
+| **Animations & 3D** | Framer Motion, Three.js, React Three Fiber, TSParticles |
+| **Backend Microservice** | FastAPI (Python 3.10+), Uvicorn |
+| **Vector DB & RAG** | ChromaDB, SentenceTransformers (`all-MiniLM-L6-v2`) |
+| **LLM & Vision AI** | Google Gemini 2.5 Flash (`@google/generative-ai`) |
+| **Authentication** | NextAuth.js (JWT Strategy, Credentials & OAuth) |
+| **Internationalization** | `next-intl` (English `en` & Hindi `hi`) |
+| **State Management** | Zustand & LocalStorage Sync |
+| **Language & Typings** | TypeScript (Strict Mode) & Python |
 
-## Getting Started
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
+- **Node.js**: `v18.17.0` or later
+- **Python**: `3.10` or later
+- **Google Gemini API Key**: [Get a free key from Google AI Studio](https://aistudio.google.com/app/apikey)
 
-- Node.js 18+
-- A [Google Gemini API key](https://aistudio.google.com/app/apikey)
+---
 
-### Installation
+### Installation & Setup
 
+#### 1. Clone the Repository
 ```bash
-# Clone the repository
-git clone https://github.com/UDaygupta12512/cook-assistant.git
-cd cook-assistant
-
-# Install Frontend dependencies
-npm install
-
-# Setup Python Backend (RAG Pipeline)
-cd python-backend
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-python ingest.py  # Builds the Chroma Vector DB
-
-# Create your environment file in the root directory
-cd ..
-cp .env.example .env.local
+git clone https://github.com/UDaygupta12512/cook-assistant-new.git
+cd cook-assistant-new
 ```
 
-### Environment Variables
+#### 2. Install Frontend Dependencies
+```bash
+npm install
+```
 
-Create a `.env.local` file in the root with the following:
+#### 3. Setup Python Backend (RAG & Vector Search)
+```bash
+cd python-backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# Windows:
+.\venv\Scripts\activate
+# macOS/Linux:
+# source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Ingest culinary dataset into Chroma Vector Database
+python ingest.py
+
+# Return to root directory
+cd ..
+```
+
+#### 4. Configure Environment Variables
+Create a `.env.local` file in the root directory:
 
 ```env
+# Google Gemini AI
 GEMINI_API_KEY=your_gemini_api_key_here
-NEXTAUTH_SECRET=your_nextauth_secret_here
+
+# NextAuth Configuration
+NEXTAUTH_SECRET=your_super_secret_jwt_key_here
 NEXTAUTH_URL=http://localhost:3000
+
+# Optional: OAuth Providers
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GITHUB_ID=
+GITHUB_SECRET=
+
+# Python Microservice Endpoint (Defaults to localhost:8000)
+PYTHON_BACKEND_URL=http://localhost:8000
 ```
 
-### Run the Development Server
+---
 
+### Running the Application
+
+#### Terminal 1: Start Next.js Frontend
 ```bash
-# Terminal 1: Start the Next.js Frontend
 npm run dev
+```
 
-# Terminal 2: Start the Python Backend
+#### Terminal 2: Start FastAPI Backend
+```bash
 cd python-backend
 .\venv\Scripts\activate
 python -m uvicorn main:app --port 8000 --reload
@@ -89,45 +180,69 @@ python -m uvicorn main:app --port 8000 --reload
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Project Structure
+---
+
+## 📁 Project Structure
 
 ```
-src/
-├── app/
-│   ├── [locale]/          # All pages (i18n routing)
-│   │   ├── generate/      # AI Recipe Generator
-│   │   ├── how-to-cook/   # Step-by-step cooking guide
-│   │   ├── nutrition-analyzer/
-│   │   ├── health-check/
-│   │   ├── healthy-swaps/
-│   │   ├── scan/          # Image ingredient scanner
-│   │   ├── pantry/
-│   │   ├── recipes/
-│   │   └── ...
-│   └── api/               # Next.js API Routes (Proxies to Python)
-├── python-backend/        # Python FastAPI Microservice
-│   ├── data/              # JSON Datasets
-│   ├── chroma_db/         # Local Vector Database
-│   ├── ingest.py          # Embedding & Ingestion script
-│   └── main.py            # FastAPI Server (RAG Pipeline)
-├── components/
-│   ├── home/              # Landing page components
-│   ├── layout/            # Navbar, Footer, Chatbot
-│   └── ui/                # Reusable UI components
-├── lib/                   # AI model, recipe data, auth utils
-├── i18n/                  # Translations (en, hi)
-└── store/                 # Zustand state management
+cook-assistant/
+├── src/
+│   ├── app/
+│   │   ├── [locale]/             # Bilingual Pages (en / hi)
+│   │   │   ├── adventure/        # Culinary Adventure Synthesizer
+│   │   │   ├── analytics/        # Nutritional Journey & Recharts
+│   │   │   ├── generate/         # AI Recipe Generator
+│   │   │   ├── hangry/           # Emergency Speed Cooking Station
+│   │   │   ├── health-check/     # TDEE, BMI & Macro Targets
+│   │   │   ├── healthy-swaps/    # Smart Substitutions
+│   │   │   ├── how-to-cook/      # Step-by-Step Voice Kitchen
+│   │   │   ├── matchmaker/       # 5D Flavor Vector Matchmaker
+│   │   │   ├── meal-planner/     # 7-Day Smart Meal Planner
+│   │   │   ├── my-recipes/       # Personal Saved Cookbooks
+│   │   │   ├── nutrition-analyzer/ # Deep Macro Breakdown
+│   │   │   ├── pantry/           # Digital Smart Pantry
+│   │   │   ├── scan/             # Multimodal Vision Scanner
+│   │   │   └── signin/ & signup/ # Authentication Pages
+│   │   └── api/                  # Next.js API Routes (AI & Backend Proxies)
+│   │       ├── generate-recipe/  # Gemini Recipe Generator
+│   │       ├── meal-plan/        # 7-Day Planner Engine
+│   │       ├── vision/           # Gemini Multimodal OCR
+│   │       └── ...
+│   ├── components/               # UI & Feature Components
+│   ├── hooks/                    # Custom React Hooks
+│   ├── i18n/                     # Translation Dictionaries (en, hi)
+│   ├── lib/                      # Culinary Engine, Recipe Data, Auth
+│   ├── store/                    # Zustand Stores (Dietary & Pantry)
+│   └── types/                    # TypeScript Module Declarations
+├── python-backend/               # Python Microservice
+│   ├── chroma_db/                # Chroma Vector Store
+│   ├── data/                     # Recipe JSON Datasets
+│   ├── ingest.py                 # Vector Ingestion Script
+│   ├── main.py                   # FastAPI Application
+│   └── requirements.txt          # Python Dependencies
+├── public/                       # Static Assets & Icons
+├── package.json
+└── tsconfig.json
 ```
 
-## Deployment
+---
 
-The easiest way to deploy is with [Vercel](https://vercel.com):
+## 🚢 Deployment Guide
 
-1. Push your code to GitHub
-2. Import the repo on Vercel
-3. Add your environment variables in the Vercel dashboard
-4. Deploy
+### Deploying Frontend on Vercel
+1. Push your repository to GitHub.
+2. Import the project into [Vercel](https://vercel.com).
+3. Add `GEMINI_API_KEY`, `NEXTAUTH_SECRET`, and `NEXTAUTH_URL` in the Environment Variables section.
+4. Deploy!
 
-## License
+### Deploying Python Microservice on Render / Railway
+1. Create a new Web Service pointing to the `python-backend` directory.
+2. Build Command: `pip install -r requirements.txt && python ingest.py`
+3. Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Set `PYTHON_BACKEND_URL` in Vercel to your deployed FastAPI service URL.
 
-MIT
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — feel free to fork, modify, and build upon it.
